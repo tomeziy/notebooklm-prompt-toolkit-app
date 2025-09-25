@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NotebookLM Prompt Toolkit App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        #app-window {
+            height: 90vh;
+            max-height: 900px;
+        }
+        #app-content::-webkit-scrollbar { width: 8px; }
+        #app-content::-webkit-scrollbar-track { background: #f1f1f1; }
+        #app-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        #app-content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .prompt-card { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .prompt-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.07); }
+        
+        .highlight-placeholder { color: #c026d3; font-weight: 600; }
+        .placeholder-example { color: #475569; font-style: italic; display: block; margin-top: 4px;}
+        .loading-state {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        /* Custom Modal Styles */
+        #confirmation-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            display: none; /* Hidden by default */
+        }
+        #confirmation-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            display: none; /* Hidden by default */
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+    <div id="app-window" class="w-full max-w-5xl bg-slate-50 rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-300">
+        
+        <header class="bg-slate-200 border-b border-slate-300 p-2 flex items-center flex-shrink-0">
+            <div class="flex space-x-2">
+                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <h1 class="text-sm font-semibold text-slate-700 mx-auto">Genuine AI Prompt Toolkit</h1>
+        </header>
+
+        <div id="app-content" class="flex-grow overflow-y-auto p-4 sm:p-6 md:p-8">
+            <header class="text-center mb-10">
+                <h1 class="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">Prompt Toolkit</h1>
+                <p class="mt-3 text-base text-slate-600 max-w-2xl mx-auto">An intelligent application to enhance your research and comprehension workflow.</p>
+            </header>
+
+            <section class="mb-10 bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-0 z-10">
+                <h2 class="text-lg font-semibold text-slate-800 mb-4">Live AI Prompt Adaptation</h2>
+                <div class="flex flex-col sm:flex-row items-center gap-4">
+                    <input type="text" id="topic-input" placeholder="Enter topic to activate live AI adaptation..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-shadow duration-200">
+                    <div class="flex gap-2 w-full sm:w-auto flex-shrink-0">
+                        <button id="adapt-all-btn" class="w-full sm:w-auto bg-teal-600 text-white font-semibold px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors duration-200 shadow-sm">Adapt All</button>
+                        <button id="reset-btn" class="w-full sm:w-auto bg-slate-200 text-slate-700 font-semibold px-5 py-2 rounded-lg hover:bg-slate-300 transition-colors duration-200">Reset</button>
+                    </div>
+                </div>
+            </section>
+
+            <main class="space-y-12">
+                <!-- Phase 1 -->
+                <div>
+                    <h2 class="text-2xl font-semibold text-slate-900 border-b-2 border-slate-200 pb-3 mb-6">Phase 1: Triage & Orientation</h2>
+                    <div class="grid md:grid-cols-1 gap-6">
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-1" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-teal-700">The Source Relevance Audit</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Quickly evaluate new documents to focus your attention effectively.</p>
+                            <div id="prompt-text-1" class="mt-4 bg-slate-50 border-l-4 border-teal-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                                Review all uploaded sources. For each document, provide its title, a one-sentence summary, its document type (e.g., academic paper, news article), and a relevance score from 1-5 based on how directly it addresses my core research question of [your central question]. Present this in a table.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-teal-600 hover:text-teal-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 2 -->
+                <div>
+                    <h2 class="text-2xl font-semibold text-slate-900 border-b-2 border-slate-200 pb-3 mb-6">Phase 2: Core Comprehension</h2>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-2" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-sky-700">The Core Thesis Distillation</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Grasp the central argument of any important document.</p>
+                            <div id="prompt-text-2" class="mt-4 bg-slate-50 border-l-4 border-sky-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                                Distill the central thesis of [Source A] into a single paragraph. Then, list the 5 most critical pieces of evidence the author uses to support it.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-sky-600 hover:text-sky-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-3" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-sky-700">The Argument Deconstruction</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Understand *how* an argument is built, not just what it says.</p>
+                            <div id="prompt-text-3" class="mt-4 bg-slate-50 border-l-4 border-sky-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Analyze the logical structure of [Source A]. Identify the primary claims, the evidence provided for each, and any unstated assumptions. Present this as a hierarchical outline.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-sky-600 hover:text-sky-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 3 -->
+                <div>
+                     <h2 class="text-2xl font-semibold text-slate-900 border-b-2 border-slate-200 pb-3 mb-6">Phase 3: Multi-Source Synthesis</h2>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-4" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-indigo-700">The Synthesis Matrix</h3>
+                            <p class="text-slate-500 mt-1 text-sm">See consensus, conflict, and connections at a glance.</p>
+                            <div id="prompt-text-4" class="mt-4 bg-slate-50 border-l-4 border-indigo-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Create a table comparing how Source A, Source B, and Source C discuss [a specific shared topic]. Columns should be: Source, Main Argument, and Key Evidence. Conclude with a summary of the main point of agreement and disagreement.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-5" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-indigo-700">The Contradiction & Gap Finder</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Find the limits and unanswered questions in your research.</p>
+                            <div id="prompt-text-5" class="mt-4 bg-slate-50 border-l-4 border-indigo-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Identify any direct contradictions or significant disagreements between the sources regarding [a specific claim or data point]. Quote the conflicting statements and cite their sources. Then, identify the most important question that *none* of the sources adequately answer.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 4 -->
+                <div>
+                     <h2 class="text-2xl font-semibold text-slate-900 border-b-2 border-slate-200 pb-3 mb-6">Phase 4: Critical & Creative Interaction</h2>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-6" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-purple-700">The Devil's Advocate</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Stress-test your own theories to find weaknesses first.</p>
+                            <div id="prompt-text-6" class="mt-4 bg-slate-50 border-l-4 border-purple-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               I am forming the opinion that [my current hypothesis]. Act as a Devil's Advocate. Using evidence *only* from my sources, present the strongest possible argument against my position.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-7" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-purple-700">The Brainstorming Partner</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Move from analysis to ideation and create new solutions.</p>
+                            <div id="prompt-text-7" class="mt-4 bg-slate-50 border-l-4 border-purple-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Synthesize the core principles from [Source A] with the practical framework from [Source B]. Based on this, generate three novel project ideas or solutions to the problem of [a specific problem].
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 5 -->
+                <div>
+                     <h2 class="text-2xl font-semibold text-slate-900 border-b-2 border-slate-200 pb-3 mb-6">Phase 5: Knowledge Consolidation & Output</h2>
+                    <div class="grid md:grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-8" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-rose-700">The FAQ Generator</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Make dense info accessible.</p>
+                            <div id="prompt-text-8" class="mt-4 bg-slate-50 border-l-4 border-rose-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Based on all sources, anticipate and answer the 10 most important questions a newcomer to this topic would have. Cite the best source for each answer.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-9" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-rose-700">The Study Guide Creator</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Turn research into a learning tool.</p>
+                            <div id="prompt-text-9" class="mt-4 bg-slate-50 border-l-4 border-rose-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Create a study guide on my sources' core topic. Include: a 10-term glossary, a 5-concept summary, and a 5-question quiz with an answer key.
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-sm p-6 prompt-card" data-prompt-id="prompt-text-10" data-adapted="false">
+                            <h3 class="text-lg font-semibold text-rose-700">The Executive Briefing Creator</h3>
+                            <p class="text-slate-500 mt-1 text-sm">Synthesize info for decisions.</p>
+                            <div id="prompt-text-10" class="mt-4 bg-slate-50 border-l-4 border-rose-500 p-4 rounded-r-lg text-slate-700 text-sm prompt-text">
+                               Generate a one-page Executive Briefing on [main topic]. Include: 'Background' (2 sentences), 'Key Findings' (3 bullets), and 'Strategic Recommendations' (2 bullets).
+                            </div>
+                            <div class="flex items-center gap-4 mt-4">
+                                <button class="adapt-single-btn text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors duration-200">ADAPT AI</button>
+                                <button class="copy-btn text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors duration-200">COPY PROMPT</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal-overlay"></div>
+    <div id="confirmation-modal" class="w-full max-w-md bg-white rounded-xl shadow-lg p-6">
+        <h3 id="modal-title" class="text-lg font-bold text-slate-900">Confirm Action</h3>
+        <p id="modal-text" class="text-sm text-slate-600 mt-2">Are you sure you want to adapt all prompts?</p>
+        <div id="modal-buttons" class="mt-6 flex justify-end gap-3">
+            <!-- Buttons will be injected here by JS -->
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const topicInput = document.getElementById('topic-input');
+            const adaptAllBtn = document.getElementById('adapt-all-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const promptCards = document.querySelectorAll('.prompt-card');
+            const apiKey = "AIzaSyBHO6dDlG_MFhlRLamEM4Oy8zf9S6o8HSU"; // Left blank as instructed
+            
+            // Modal elements
+            const modalOverlay = document.getElementById('confirmation-modal-overlay');
+            const modal = document.getElementById('confirmation-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalText = document.getElementById('modal-text');
+            const modalButtons = document.getElementById('modal-buttons');
+
+            promptCards.forEach(card => {
+                const promptEl = card.querySelector('.prompt-text');
+                if (promptEl) {
+                    promptEl.setAttribute('data-original-prompt', promptEl.innerHTML.trim());
+                }
+            });
+            
+            async function getAdaptedPromptFromAI(topic, originalPrompt) {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const systemInstruction = `You are an expert research assistant. Your task is to rewrite a generic research prompt to be more insightful and specific to a user's topic. Generate genuinely new, challenging, and relevant sub-questions or hypotheses. The rewritten prompt should guide the user toward a deeper level of analysis. Respond ONLY with the JSON object. The 'adapted_prompt' string value should be formatted with simple HTML for readability. Use "<br>" for line breaks, "<strong>" for emphasis on key terms, and "<ul><li>...</li></ul>" for lists where appropriate. Do not use any other HTML tags.`;
+                const userQuery = `User's Topic: "${topic}"\n\nOriginal Prompt: "${originalPrompt}"\n\nRewrite this prompt to be more specific and insightful for the user's topic.`;
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemInstruction }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: { "adapted_prompt": { "type": "STRING" } },
+                            required: ["adapted_prompt"]
+                        }
+                    }
+                };
+
+                try {
+                    let response;
+                    let delay = 1000;
+                    for (let i = 0; i < 5; i++) {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (response.ok) break;
+                        if (response.status === 429 || response.status >= 500) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+                    
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        const parsedJson = JSON.parse(text);
+                        return parsedJson.adapted_prompt;
+                    }
+                    throw new Error("Invalid response structure from API.");
+                } catch (error) {
+                    console.error("AI Adaptation Error:", error);
+                    return `Error adapting prompt. Please try again. Original: "${originalPrompt}"`;
+                }
+            }
+            
+            async function adaptSinglePrompt(promptEl) {
+                const topic = topicInput.value.trim();
+                if (!topic) {
+                    topicInput.focus();
+                    topicInput.classList.add('border-red-500');
+                    return;
+                }
+                topicInput.classList.remove('border-red-500');
+
+                const card = promptEl.closest('.prompt-card');
+                const originalPrompt = promptEl.getAttribute('data-original-prompt');
+                promptEl.innerHTML = `<span class="loading-state">Adapting with AI...</span>`;
+                const adaptedText = await getAdaptedPromptFromAI(topic, originalPrompt);
+                promptEl.innerHTML = adaptedText;
+                card.setAttribute('data-adapted', 'true');
+            }
+
+            function showModal(mode) {
+                modalButtons.innerHTML = ''; // Clear previous buttons
+                
+                if (mode === 'some-adapted') {
+                    modalTitle.textContent = 'Adaptation Options';
+                    modalText.textContent = 'Some prompts have already been adapted. How would you like to proceed?';
+                    
+                    const adaptAllBtn = document.createElement('button');
+                    adaptAllBtn.textContent = 'Adapt All (Overwrite)';
+                    adaptAllBtn.className = 'bg-red-600 text-white font-semibold px-4 py-2 rounded-lg text-sm';
+                    adaptAllBtn.onclick = () => {
+                        hideModal();
+                        executeAdaptation('all');
+                    };
+
+                    const adaptRemainingBtn = document.createElement('button');
+                    adaptRemainingBtn.textContent = 'Adapt Remaining';
+                    adaptRemainingBtn.className = 'bg-teal-600 text-white font-semibold px-4 py-2 rounded-lg text-sm';
+                    adaptRemainingBtn.onclick = () => {
+                        hideModal();
+                        executeAdaptation('remaining');
+                    };
+                    
+                    modalButtons.appendChild(adaptRemainingBtn);
+                    modalButtons.appendChild(adaptAllBtn);
+
+                } else { // 'all' or default
+                    modalTitle.textContent = 'Confirm Adaptation';
+                    modalText.textContent = 'This will use AI to adapt all 10 prompts. Are you sure?';
+
+                    const confirmBtn = document.createElement('button');
+                    confirmBtn.textContent = 'Confirm';
+                    confirmBtn.className = 'bg-teal-600 text-white font-semibold px-4 py-2 rounded-lg text-sm';
+                    confirmBtn.onclick = () => {
+                        hideModal();
+                        executeAdaptation('all');
+                    };
+                    modalButtons.appendChild(confirmBtn);
+                }
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.className = 'bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm';
+                cancelBtn.onclick = hideModal;
+                modalButtons.appendChild(cancelBtn);
+
+                modalOverlay.style.display = 'block';
+                modal.style.display = 'block';
+            }
+
+            function hideModal() {
+                modalOverlay.style.display = 'none';
+                modal.style.display = 'none';
+            }
+
+            async function executeAdaptation(mode) {
+                 const topic = topicInput.value.trim();
+                if (!topic) {
+                    topicInput.focus();
+                    topicInput.classList.add('border-red-500');
+                    return;
+                }
+                const adaptationPromises = [];
+                promptCards.forEach(card => {
+                    if (mode === 'all' || (mode === 'remaining' && card.getAttribute('data-adapted') === 'false')) {
+                        const promptEl = card.querySelector('.prompt-text');
+                        if (promptEl) {
+                            adaptationPromises.push(adaptSinglePrompt(promptEl));
+                        }
+                    }
+                });
+                await Promise.all(adaptationPromises);
+            }
+
+            function handleAdaptAllClick() {
+                const adaptedCount = document.querySelectorAll('.prompt-card[data-adapted="true"]').length;
+                if (adaptedCount > 0 && adaptedCount < promptCards.length) {
+                    showModal('some-adapted');
+                } else {
+                    showModal('all');
+                }
+            }
+            
+            const resetPrompts = () => {
+                promptCards.forEach(card => {
+                    const promptEl = card.querySelector('.prompt-text');
+                    if (promptEl) {
+                        promptEl.innerHTML = promptEl.getAttribute('data-original-prompt');
+                        card.setAttribute('data-adapted', 'false');
+                    }
+                });
+                topicInput.value = '';
+                topicInput.classList.remove('border-red-500');
+            };
+
+            adaptAllBtn.addEventListener('click', handleAdaptAllClick);
+            resetBtn.addEventListener('click', resetPrompts);
+            
+            promptCards.forEach(card => {
+                const adaptBtn = card.querySelector('.adapt-single-btn');
+                const promptEl = card.querySelector('.prompt-text');
+                if(adaptBtn && promptEl) {
+                    adaptBtn.addEventListener('click', () => adaptSinglePrompt(promptEl));
+                }
+            });
+
+            topicInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); 
+                    handleAdaptAllClick();
+                }
+            });
+
+            const copyButtons = document.querySelectorAll('.copy-btn');
+            copyButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const card = e.target.closest('.prompt-card');
+                    const promptTextElement = card.querySelector('.prompt-text');
+                    const promptText = promptTextElement.innerText.trim();
+                    const tempTextArea = document.createElement('textarea');
+                    tempTextArea.style.position = 'absolute';
+                    tempTextArea.style.left = '-9999px';
+                    tempTextArea.value = promptText;
+                    document.body.appendChild(tempTextArea);
+                    tempTextArea.select();
+                    try {
+                        document.execCommand('copy');
+                        const originalText = button.innerHTML;
+                        button.innerHTML = 'COPIED!';
+                        button.classList.add('text-green-600');
+                        setTimeout(() => {
+                            button.innerHTML = originalText;
+                            button.classList.remove('text-green-600');
+                        }, 2000);
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                    } finally {
+                        document.body.removeChild(tempTextArea);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
