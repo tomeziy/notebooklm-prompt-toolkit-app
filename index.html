@@ -241,8 +241,8 @@
     </div>
 
     <!-- Confirmation Modal -->
-    <div id="confirmation-modal-overlay"></div>
-    <div id="confirmation-modal" class="w-full max-w-md bg-white rounded-xl shadow-lg p-6">
+    <div id="confirmation-modal-overlay" class="hidden"></div>
+    <div id="confirmation-modal" class="hidden w-full max-w-md bg-white rounded-xl shadow-lg p-6">
         <h3 id="modal-title" class="text-lg font-bold text-slate-900">Confirm Action</h3>
         <p id="modal-text" class="text-sm text-slate-600 mt-2">Are you sure you want to adapt all prompts?</p>
         <div id="modal-buttons" class="mt-6 flex justify-end gap-3">
@@ -257,7 +257,7 @@
             const adaptAllBtn = document.getElementById('adapt-all-btn');
             const resetBtn = document.getElementById('reset-btn');
             const promptCards = document.querySelectorAll('.prompt-card');
-            const apiKey = "AIzaSyBHO6dDlG_MFhlRLamEM4Oy8zf9S6o8HSU"; // Left blank as instructed
+            const apiKey = ""; // Left blank as instructed
             
             // Modal elements
             const modalOverlay = document.getElementById('confirmation-modal-overlay');
@@ -275,7 +275,15 @@
             
             async function getAdaptedPromptFromAI(topic, originalPrompt) {
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-                const systemInstruction = `You are an expert research assistant. Your task is to rewrite a generic research prompt to be more insightful and specific to a user's topic. Generate genuinely new, challenging, and relevant sub-questions or hypotheses. The rewritten prompt should guide the user toward a deeper level of analysis. Respond ONLY with the JSON object. The 'adapted_prompt' string value should be formatted with simple HTML for readability. Use "<br>" for line breaks, "<strong>" for emphasis on key terms, and "<ul><li>...</li></ul>" for lists where appropriate. Do not use any other HTML tags.`;
+                
+                // --- THIS IS THE CRITICAL FIX ---
+                // Updated character limit to 1999.
+                const systemInstruction = `You are an expert research assistant. Your task is to rewrite a generic research prompt to be insightful and specific to a user's topic.
+CRITICAL CONSTRAINT: The rewritten prompt must be concise, actionable, and **under 1,999 characters**. This is a hard limit to ensure it fits in the user's chat application. Be brief.
+Generate new, challenging sub-questions or hypotheses where appropriate.
+Respond ONLY with the JSON object. The 'adapted_prompt' string value should be formatted with simple HTML for readability (e.g., "<br>", "<strong>", "<li>").`;
+                // --- END OF FIX ---
+
                 const userQuery = `User's Topic: "${topic}"\n\nOriginal Prompt: "${originalPrompt}"\n\nRewrite this prompt to be more specific and insightful for the user's topic.`;
                 const payload = {
                     contents: [{ parts: [{ text: userQuery }] }],
@@ -386,13 +394,13 @@
                 cancelBtn.onclick = hideModal;
                 modalButtons.appendChild(cancelBtn);
 
-                modalOverlay.style.display = 'block';
-                modal.style.display = 'block';
+                modalOverlay.classList.remove('hidden');
+                modal.classList.remove('hidden');
             }
 
             function hideModal() {
-                modalOverlay.style.display = 'none';
-                modal.style.display = 'none';
+                modalOverlay.classList.add('hidden');
+                modal.classList.add('hidden');
             }
 
             async function executeAdaptation(mode) {
@@ -415,6 +423,12 @@
             }
 
             function handleAdaptAllClick() {
+                const topic = topicInput.value.trim();
+                if (!topic) {
+                    topicInput.focus();
+                    topicInput.classList.add('border-red-500');
+                    return;
+                }
                 const adaptedCount = document.querySelectorAll('.prompt-card[data-adapted="true"]').length;
                 if (adaptedCount > 0 && adaptedCount < promptCards.length) {
                     showModal('some-adapted');
@@ -458,7 +472,7 @@
                 button.addEventListener('click', (e) => {
                     const card = e.target.closest('.prompt-card');
                     const promptTextElement = card.querySelector('.prompt-text');
-                    const promptText = promptTextElement.innerText.trim();
+                    const promptText = promptTextElement.innerText.trim(); // Use innerText to copy text content
                     const tempTextArea = document.createElement('textarea');
                     tempTextArea.style.position = 'absolute';
                     tempTextArea.style.left = '-9999px';
@@ -485,4 +499,3 @@
     </script>
 </body>
 </html>
-
