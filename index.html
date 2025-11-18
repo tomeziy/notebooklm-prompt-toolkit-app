@@ -276,13 +276,10 @@
             async function getAdaptedPromptFromAI(topic, originalPrompt) {
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
                 
-                // --- THIS IS THE CRITICAL FIX ---
-                // Updated character limit to 1999.
                 const systemInstruction = `You are an expert research assistant. Your task is to rewrite a generic research prompt to be insightful and specific to a user's topic.
 CRITICAL CONSTRAINT: The rewritten prompt must be concise, actionable, and **under 1,999 characters**. This is a hard limit to ensure it fits in the user's chat application. Be brief.
 Generate new, challenging sub-questions or hypotheses where appropriate.
 Respond ONLY with the JSON object. The 'adapted_prompt' string value should be formatted with simple HTML for readability (e.g., "<br>", "<strong>", "<li>").`;
-                // --- END OF FIX ---
 
                 const userQuery = `User's Topic: "${topic}"\n\nOriginal Prompt: "${originalPrompt}"\n\nRewrite this prompt to be more specific and insightful for the user's topic.`;
                 const payload = {
@@ -403,6 +400,8 @@ Respond ONLY with the JSON object. The 'adapted_prompt' string value should be f
                 modal.classList.add('hidden');
             }
 
+            // --- THIS IS THE CRITICAL FIX ---
+            // Changed from parallel (Promise.all) to sequential (for...of loop)
             async function executeAdaptation(mode) {
                  const topic = topicInput.value.trim();
                 if (!topic) {
@@ -410,17 +409,19 @@ Respond ONLY with the JSON object. The 'adapted_prompt' string value should be f
                     topicInput.classList.add('border-red-500');
                     return;
                 }
-                const adaptationPromises = [];
-                promptCards.forEach(card => {
+                
+                // Use a standard for-loop to iterate sequentially
+                for (const card of promptCards) {
                     if (mode === 'all' || (mode === 'remaining' && card.getAttribute('data-adapted') === 'false')) {
                         const promptEl = card.querySelector('.prompt-text');
                         if (promptEl) {
-                            adaptationPromises.push(adaptSinglePrompt(promptEl));
+                            // Await each promise individually, forcing the loop to wait
+                            await adaptSinglePrompt(promptEl);
                         }
                     }
-                });
-                await Promise.all(adaptationPromises);
+                }
             }
+            // --- END OF FIX ---
 
             function handleAdaptAllClick() {
                 const topic = topicInput.value.trim();
